@@ -3,7 +3,12 @@ package main
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
+	"os/exec"
+	"regexp"
+	"runtime"
+	"strings"
 
 	"github.com/andrewwillette/aptmtSrchr"
 	"github.com/charmbracelet/bubbles/list"
@@ -11,9 +16,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-const listHeight = 14
+const listHeight = 16
 
-var apartmentsF = aptmtSrchr.GetApartments()
+var aptmts = aptmtSrchr.GetApartments()
 
 var (
 	titleStyle        = lipgloss.NewStyle().MarginLeft(2)
@@ -78,8 +83,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			i, ok := m.list.SelectedItem().(item)
 			if ok {
 				m.choice = string(i)
+				selectedUnit := getSelectedUnit(m.choice)
+				for _, apt := range aptmts {
+					if apt.UnitTitle == selectedUnit {
+						openUrl(apt.ViewUrl)
+					}
+				}
 			}
-			return m, tea.Quit
+			return m, nil
 		}
 	}
 
@@ -90,8 +101,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 	if m.choice != "" {
-		// return quitTextStyle.Render(fmt.Sprintf("%s? TODO: Open url.", m.choice))
-		fmt.Printf("Selected %+v\n", m.choice)
 		return "\n" + m.list.View()
 	}
 	if m.quitting {
@@ -100,16 +109,40 @@ func (m model) View() string {
 	return "\n" + m.list.View()
 }
 
+func openUrl(url string) {
+	var err error
+
+	switch runtime.GOOS {
+	case "linux":
+		err = exec.Command("xdg-open", url).Start()
+	case "windows":
+		err = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+	case "darwin":
+		err = exec.Command("open", url).Start()
+	default:
+		err = fmt.Errorf("unsupported platform")
+	}
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+func getSelectedUnit(selected string) string {
+	r, _ := regexp.Compile(`\s[^:].*:`)
+	result := r.FindString(selected)
+	r, _ = regexp.Compile(`.*[^:]`)
+	result = r.FindString(result)
+	return strings.TrimSpace(result)
+}
 func main() {
 	items := []list.Item{}
-	for _, apt := range apartmentsF {
-		items = append(items, item(fmt.Sprintf("%+v", apt)))
+	for _, apt := range aptmts {
+		items = append(items, item(fmt.Sprintf("%s : %s : %d", apt.AvailDate, apt.UnitTitle, apt.Rent)))
 	}
 
 	const defaultWidth = 20
 
 	l := list.New(items, itemDelegate{}, defaultWidth, listHeight)
-	l.Title = "What do you want for dinner?"
+	l.Title = "Available Apartments"
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
 	l.Styles.Title = titleStyle
