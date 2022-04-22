@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
+
 const listHeight = 14
 
 var apartmentsF = aptmtSrchr.GetApartments()
@@ -89,7 +90,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 	if m.choice != "" {
-		return quitTextStyle.Render(fmt.Sprintf("%s? TODO: Open url.", m.choice))
+		// return quitTextStyle.Render(fmt.Sprintf("%s? TODO: Open url.", m.choice))
+		fmt.Printf("Selected %+v\n", m.choice)
+		return "\n" + m.list.View()
 	}
 	if m.quitting {
 		return quitTextStyle.Render("Program Exited.")
@@ -100,7 +103,7 @@ func (m model) View() string {
 func main() {
 	items := []list.Item{}
 	for _, apt := range apartmentsF {
-		items = append(items, item(fmt.Sprintf("%+v",apt)))
+		items = append(items, item(fmt.Sprintf("%+v", apt)))
 	}
 
 	const defaultWidth = 20
