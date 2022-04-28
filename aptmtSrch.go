@@ -12,6 +12,7 @@ import (
 
 	"github.com/andrewwillette/aptmtSrchr"
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -57,20 +58,21 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 }
 
 type model struct {
-	list     list.Model
-	items    []item
-	choice   string
-	quitting bool
+	apartmentList list.Model
+	spinner       spinner.Model
+	items         []item
+	choice        string
+	quitting      bool
 }
 
 func (m model) Init() tea.Cmd {
-	return nil
+	return m.spinner.Tick
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.list.SetWidth(msg.Width)
+		m.apartmentList.SetWidth(msg.Width)
 		return m, nil
 
 	case tea.KeyMsg:
@@ -80,7 +82,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case "enter":
-			i, ok := m.list.SelectedItem().(item)
+			i, ok := m.apartmentList.SelectedItem().(item)
 			if ok {
 				m.choice = string(i)
 				selectedUnit := getSelectedUnit(m.choice)
@@ -95,18 +97,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	var cmd tea.Cmd
-	m.list, cmd = m.list.Update(msg)
+	m.apartmentList, cmd = m.apartmentList.Update(msg)
+	m.spinner, cmd = m.spinner.Update(msg)
 	return m, cmd
 }
 
 func (m model) View() string {
-	if m.choice != "" {
-		return "\n" + m.list.View()
-	}
+	// if m.choice != "" {
+	// 	return "\n" + m.apartmentList.View()
+	// }
 	if m.quitting {
 		return quitTextStyle.Render("Program Exited.")
 	}
-	return "\n" + m.list.View()
+	return fmt.Sprintf("\n%s\n\n%s", m.apartmentList.View(), m.spinner.View())
 }
 
 func openUrl(url string) {
@@ -149,7 +152,7 @@ func main() {
 	l.Styles.PaginationStyle = paginationStyle
 	l.Styles.HelpStyle = helpStyle
 
-	m := model{list: l}
+	m := model{apartmentList: l}
 
 	if err := tea.NewProgram(m).Start(); err != nil {
 		fmt.Println("Error running program:", err)
