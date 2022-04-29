@@ -66,25 +66,31 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 }
 
 type model struct {
-	apartment list.Model
-	spinner   spinner.Model
-	items     []item
-	choice    string
-	quitting  bool
+	apartmentList list.Model
+	// spinner       spinner.Model
+	choice   string
+	quitting bool
+}
+
+func getApartments(apartmentListModel *[]item) {
 }
 
 func (m model) Init() tea.Cmd {
-	return m.spinner.Tick
+	// go func() { getApartments(&m.items) }()
+	// return m.spinner.Tick
+	return m.apartmentList.StartSpinner()
 }
 
-var aptmts *[]item
+var aptmts []aptmtSrchr.Apartment
+
+// func getApartments(aptmts *[]item
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	logg.Printf("calling Update\n")
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		logg.Println("m.Update tea.windowsizemsg case")
-		m.apartment.SetWidth(msg.Width)
+		m.apartmentList.SetWidth(msg.Width)
 		logg.Println("m.Update tea.windowsizemsg case2")
 		return m, nil
 
@@ -109,31 +115,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	}
-
-	logg.Printf("calling Update1.2\n")
-	var cmd tea.Cmd
-	logg.Printf("calling Update1.23\n")
-	// m.apartment, cmd = m.apartment.Update(msg)
-	logg.Printf("calling Update1.3\n")
-	m.spinner, cmd = m.spinner.Update(msg)
-	logg.Printf("calling Update1.4\n")
-	return m, cmd
+	logg.Println("m.Update end of line")
+	return m, nil
 }
 
 func (m model) View() string {
-	logg.Printf("calling model.View()\n")
+	logg.Printf("model.View()\n")
 	// if m.choice != "" {
 	// 	return "\n" + m.apartmentList.View()
 	// }
 	if m.quitting {
 		return quitTextStyle.Render("Program Exited.")
 	}
-	// if len(*aptmts) >= 1 {
-	// 	return fmt.Sprintf("\n%s\n\n", m.apartment.View())
+
+	// if len(*m.) >= 1 {
+	// 	return fmt.Sprintf("\n%s\n\n", m.apartmentListModel.View())
 	// 	// logg.Printf("apartments greater than 0\n")
 	// 	// return "got apartments"
 	// }
-	return fmt.Sprintf("\n\n   %s Loading Apartments\n\n", m.spinner.View())
+	return fmt.Sprintf("\n\n   %s Loading Apartments\n\n", m.apartmentList.View())
 }
 
 func openUrl(url string) {
@@ -161,25 +161,6 @@ func getSelectedUnit(selected string) string {
 	return strings.TrimSpace(result)
 }
 
-func updateApartments(aptmts *item) {
-	items := []list.Item{}
-	var apartments = aptmtSrchr.GetApartments()
-
-	for _, apt := range apartments {
-		items = append(items, item(fmt.Sprintf("%s : %s : %d", apt.AvailDate, apt.UnitTitle, apt.Rent)))
-	}
-
-	const defaultWidth = 20
-
-	l := list.New(items, itemDelegate{}, defaultWidth, listHeight)
-	l.Title = "Available Apartments"
-	l.SetShowStatusBar(false)
-	l.SetFilteringEnabled(false)
-	l.Styles.Title = titleStyle
-	l.Styles.PaginationStyle = paginationStyle
-	l.Styles.HelpStyle = helpStyle
-}
-
 func getEmptyApartmentUi() list.Model {
 	items := []list.Item{}
 
@@ -195,25 +176,21 @@ func getEmptyApartmentUi() list.Model {
 	return l
 }
 
-func main() {
-	// items := []list.Item{}
-
-	const defaultWidth = 20
-
-	// l := list.New(items, itemDelegate{}, defaultWidth, listHeight)
-	// l.Title = "Available Apartments"
-	// l.SetShowStatusBar(false)
-	// l.SetFilteringEnabled(false)
-	// l.Styles.Title = titleStyle
-	// l.Styles.PaginationStyle = paginationStyle
-	// l.Styles.HelpStyle = helpStyle
-
+func getSpinner() spinner.Model {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	m := model{apartment: getEmptyApartmentUi(), spinner: s}
+	return s
+}
 
-	if err := tea.NewProgram(m).Start(); err != nil {
+func newModel() model {
+	m := model{apartmentList: getEmptyApartmentUi()}
+	m.apartmentList.SetSpinner(getSpinner().Spinner)
+	return m
+}
+
+func main() {
+	if err := tea.NewProgram(newModel()).Start(); err != nil {
 		fmt.Println("Error running program:", err)
 		os.Exit(1)
 	}
