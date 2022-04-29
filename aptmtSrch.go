@@ -17,10 +17,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-const listHeight = 16
-
-var aptmts = aptmtSrchr.GetApartments()
-
 var (
 	titleStyle        = lipgloss.NewStyle().MarginLeft(2)
 	itemStyle         = lipgloss.NewStyle().PaddingLeft(4)
@@ -28,7 +24,19 @@ var (
 	paginationStyle   = list.DefaultStyles().PaginationStyle.PaddingLeft(4)
 	helpStyle         = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
 	quitTextStyle     = lipgloss.NewStyle().Margin(1, 0, 2, 4)
+	logg              *log.Logger
 )
+
+func init() {
+	var file, err1 = os.OpenFile("./bubTea.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+
+	if err1 != nil {
+		panic(err1)
+	}
+	logg = log.New(file, "", log.LstdFlags|log.Lshortfile)
+}
+
+const listHeight = 16
 
 type item string
 
@@ -58,58 +66,74 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 }
 
 type model struct {
-	apartmentList list.Model
-	spinner       spinner.Model
-	items         []item
-	choice        string
-	quitting      bool
+	apartment list.Model
+	spinner   spinner.Model
+	items     []item
+	choice    string
+	quitting  bool
 }
 
 func (m model) Init() tea.Cmd {
 	return m.spinner.Tick
 }
 
+var aptmts *[]item
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	logg.Printf("calling Update\n")
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.apartmentList.SetWidth(msg.Width)
+		logg.Println("m.Update tea.windowsizemsg case")
+		m.apartment.SetWidth(msg.Width)
+		logg.Println("m.Update tea.windowsizemsg case2")
 		return m, nil
 
 	case tea.KeyMsg:
+		logg.Println("m.Update tea.keymsg case")
 		switch keypress := msg.String(); keypress {
 		case "ctrl+c":
 			m.quitting = true
 			return m, tea.Quit
 
 		case "enter":
-			i, ok := m.apartmentList.SelectedItem().(item)
-			if ok {
-				m.choice = string(i)
-				selectedUnit := getSelectedUnit(m.choice)
-				for _, apt := range aptmts {
-					if apt.UnitTitle == selectedUnit {
-						openUrl(apt.ViewUrl)
-					}
-				}
-			}
+			// i, ok := m.apartment.SelectedItem().(item)
+			// if ok {
+			// 	m.choice = string(i)
+			// 	selectedUnit := getSelectedUnit(m.choice)
+			// 	for _, apt := range *aptmts {
+			// 		if apt.UnitTitle == selectedUnit {
+			// 			openUrl(apt.ViewUrl)
+			// 		}
+			// 	}
+			// }
 			return m, nil
 		}
 	}
 
+	logg.Printf("calling Update1.2\n")
 	var cmd tea.Cmd
-	m.apartmentList, cmd = m.apartmentList.Update(msg)
+	logg.Printf("calling Update1.23\n")
+	// m.apartment, cmd = m.apartment.Update(msg)
+	logg.Printf("calling Update1.3\n")
 	m.spinner, cmd = m.spinner.Update(msg)
+	logg.Printf("calling Update1.4\n")
 	return m, cmd
 }
 
 func (m model) View() string {
+	logg.Printf("calling model.View()\n")
 	// if m.choice != "" {
 	// 	return "\n" + m.apartmentList.View()
 	// }
 	if m.quitting {
 		return quitTextStyle.Render("Program Exited.")
 	}
-	return fmt.Sprintf("\n%s\n\n%s", m.apartmentList.View(), m.spinner.View())
+	// if len(*aptmts) >= 1 {
+	// 	return fmt.Sprintf("\n%s\n\n", m.apartment.View())
+	// 	// logg.Printf("apartments greater than 0\n")
+	// 	// return "got apartments"
+	// }
+	return fmt.Sprintf("\n\n   %s Loading Apartments\n\n", m.spinner.View())
 }
 
 func openUrl(url string) {
@@ -136,9 +160,12 @@ func getSelectedUnit(selected string) string {
 	result = r.FindString(result)
 	return strings.TrimSpace(result)
 }
-func main() {
+
+func updateApartments(aptmts *item) {
 	items := []list.Item{}
-	for _, apt := range aptmts {
+	var apartments = aptmtSrchr.GetApartments()
+
+	for _, apt := range apartments {
 		items = append(items, item(fmt.Sprintf("%s : %s : %d", apt.AvailDate, apt.UnitTitle, apt.Rent)))
 	}
 
@@ -151,8 +178,40 @@ func main() {
 	l.Styles.Title = titleStyle
 	l.Styles.PaginationStyle = paginationStyle
 	l.Styles.HelpStyle = helpStyle
+}
 
-	m := model{apartmentList: l}
+func getEmptyApartmentUi() list.Model {
+	items := []list.Item{}
+
+	const defaultWidth = 20
+
+	l := list.New(items, itemDelegate{}, defaultWidth, listHeight)
+	l.Title = "Available Apartments"
+	l.SetShowStatusBar(false)
+	l.SetFilteringEnabled(false)
+	l.Styles.Title = titleStyle
+	l.Styles.PaginationStyle = paginationStyle
+	l.Styles.HelpStyle = helpStyle
+	return l
+}
+
+func main() {
+	// items := []list.Item{}
+
+	const defaultWidth = 20
+
+	// l := list.New(items, itemDelegate{}, defaultWidth, listHeight)
+	// l.Title = "Available Apartments"
+	// l.SetShowStatusBar(false)
+	// l.SetFilteringEnabled(false)
+	// l.Styles.Title = titleStyle
+	// l.Styles.PaginationStyle = paginationStyle
+	// l.Styles.HelpStyle = helpStyle
+
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	m := model{apartment: getEmptyApartmentUi(), spinner: s}
 
 	if err := tea.NewProgram(m).Start(); err != nil {
 		fmt.Println("Error running program:", err)
