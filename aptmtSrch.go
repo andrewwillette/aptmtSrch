@@ -67,9 +67,9 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 
 type model struct {
 	apartmentList list.Model
-	// spinner       spinner.Model
-	choice   string
-	quitting bool
+	spinner       spinner.Model
+	choice        string
+	quitting      bool
 }
 
 func getApartments(apartmentListModel *[]item) {
@@ -77,8 +77,8 @@ func getApartments(apartmentListModel *[]item) {
 
 func (m model) Init() tea.Cmd {
 	// go func() { getApartments(&m.items) }()
-	// return m.spinner.Tick
-	return m.apartmentList.StartSpinner()
+	return m.spinner.Tick
+	// return m.apartmentList.StartSpinner()
 }
 
 var aptmts []aptmtSrchr.Apartment
@@ -114,9 +114,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// }
 			return m, nil
 		}
+	default:
+		logg.Println("m.Update end of line")
+		// m.apartmentList, cmd := m.apartmentList.Update(msg)
+		return m, nil
 	}
 	logg.Println("m.Update end of line")
-	return m, nil
+	// m.apartmentList.Update(msg)
+	var cmd tea.Cmd
+	m.spinner, cmd = m.spinner.Update(msg)
+	return m, cmd
 }
 
 func (m model) View() string {
@@ -133,7 +140,7 @@ func (m model) View() string {
 	// 	// logg.Printf("apartments greater than 0\n")
 	// 	// return "got apartments"
 	// }
-	return fmt.Sprintf("\n\n   %s Loading Apartments\n\n", m.apartmentList.View())
+	return fmt.Sprintf("\n\n   %s Loading Apartments\n\n", m.spinner.View())
 }
 
 func openUrl(url string) {
@@ -184,8 +191,8 @@ func getSpinner() spinner.Model {
 }
 
 func newModel() model {
-	m := model{apartmentList: getEmptyApartmentUi()}
-	m.apartmentList.SetSpinner(getSpinner().Spinner)
+	m := model{apartmentList: getEmptyApartmentUi(), spinner: getSpinner()}
+	// m.apartmentList.SetSpinner(getSpinner().Spinner)
 	return m
 }
 
