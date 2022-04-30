@@ -17,26 +17,20 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-var (
-	titleStyle        = lipgloss.NewStyle().MarginLeft(2)
-	itemStyle         = lipgloss.NewStyle().PaddingLeft(4)
-	selectedItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("170"))
-	paginationStyle   = list.DefaultStyles().PaginationStyle.PaddingLeft(4)
-	helpStyle         = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
-	quitTextStyle     = lipgloss.NewStyle().Margin(1, 0, 2, 4)
-	logg              *log.Logger
-)
-
-func init() {
-	var file, err1 = os.OpenFile("./bubTea.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-
-	if err1 != nil {
-		panic(err1)
+func main() {
+	go loadApartments()
+	if err := tea.NewProgram(newModel()).Start(); err != nil {
+		fmt.Println("Error running program:", err)
+		os.Exit(1)
 	}
-	logg = log.New(file, "", log.LstdFlags|log.Lshortfile)
 }
 
-const listHeight = 16
+func init() {
+	initLog()
+}
+
+const listHeight = 9
+const defaultWidth = 20
 
 type item string
 
@@ -72,78 +66,106 @@ type model struct {
 	quitting      bool
 }
 
-func getApartments(apartmentListModel *[]item) {
+var (
+	titleStyle        = lipgloss.NewStyle().MarginLeft(2)
+	itemStyle         = lipgloss.NewStyle().PaddingLeft(4)
+	selectedItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("170"))
+	paginationStyle   = list.DefaultStyles().PaginationStyle.PaddingLeft(4)
+	helpStyle         = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
+	quitTextStyle     = lipgloss.NewStyle().Margin(1, 0, 2, 4)
+	logg              *log.Logger
+	apartmentsLoaded  = false
+	loadedApartments  = []aptmtSrchr.Apartment{}
+)
+
+// loadApartments load apartments from internet and set local flags
+// notifying runtime that apartments are loaded
+func loadApartments() {
+	defer func() { apartmentsLoaded = true }()
+	loadedApartments = aptmtSrchr.GetApartments()
 }
 
 func (m model) Init() tea.Cmd {
-	// go func() { getApartments(&m.items) }()
 	return m.spinner.Tick
-	// return m.apartmentList.StartSpinner()
 }
 
-var aptmts []aptmtSrchr.Apartment
-
-// func getApartments(aptmts *[]item
-
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	logg.Printf("calling Update\n")
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		logg.Println("m.Update tea.windowsizemsg case")
 		m.apartmentList.SetWidth(msg.Width)
-		logg.Println("m.Update tea.windowsizemsg case2")
 		return m, nil
 
 	case tea.KeyMsg:
-		logg.Println("m.Update tea.keymsg case")
 		switch keypress := msg.String(); keypress {
 		case "ctrl+c":
 			m.quitting = true
 			return m, tea.Quit
 
 		case "enter":
-			// i, ok := m.apartment.SelectedItem().(item)
-			// if ok {
-			// 	m.choice = string(i)
-			// 	selectedUnit := getSelectedUnit(m.choice)
-			// 	for _, apt := range *aptmts {
-			// 		if apt.UnitTitle == selectedUnit {
-			// 			openUrl(apt.ViewUrl)
-			// 		}
-			// 	}
-			// }
+			l("pressed enter")
+			i, ok := m.apartmentList.SelectedItem().(item)
+			if ok {
+				m.choice = string(i)
+				selectedUnit := getSelectedUnit(m.choice)
+				l(fmt.Sprintf("selected unit: %+v", selectedUnit))
+				for _, apt := range loadedApartments {
+					if apt.UnitTitle == selectedUnit {
+						openUrl(apt.ViewUrl)
+					}
+				}
+			}
 			return m, nil
 		}
 	default:
-		logg.Println("m.Update end of line")
-		// m.apartmentList, cmd := m.apartmentList.Update(msg)
-		return m, nil
+		if !apartmentsLoaded {
+			var cmd tea.Cmd
+			m.spinner, cmd = m.spinner.Update(msg)
+			return m, cmd
+		} else {
+			var cmd tea.Cmd
+			m.apartmentList, cmd = m.apartmentList.Update(msg)
+			return m, cmd
+		}
 	}
-	logg.Println("m.Update end of line")
-	// m.apartmentList.Update(msg)
-	var cmd tea.Cmd
-	m.spinner, cmd = m.spinner.Update(msg)
-	return m, cmd
+	if !apartmentsLoaded {
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+	} else {
+		var cmd tea.Cmd
+		m.apartmentList.SetItems(getApartmentUiItems(loadedApartments))
+		m.apartmentList, cmd = m.apartmentList.Update(msg)
+		return m, cmd
+	}
+}
+
+var modelApartmentsSet = false
+
+func l(tolog string) {
+	logg.Println(tolog)
 }
 
 func (m model) View() string {
-	logg.Printf("model.View()\n")
+
 	// if m.choice != "" {
 	// 	return "\n" + m.apartmentList.View()
 	// }
 	if m.quitting {
 		return quitTextStyle.Render("Program Exited.")
 	}
+	if apartmentsLoaded {
+		if !modelApartmentsSet {
+			m.apartmentList.SetItems(getApartmentUiItems(loadedApartments))
+			modelApartmentsSet = true
+		}
+		return fmt.Sprintf("\n%s\n\n", m.apartmentList.View())
+	}
 
-	// if len(*m.) >= 1 {
-	// 	return fmt.Sprintf("\n%s\n\n", m.apartmentListModel.View())
-	// 	// logg.Printf("apartments greater than 0\n")
-	// 	// return "got apartments"
-	// }
 	return fmt.Sprintf("\n\n   %s Loading Apartments\n\n", m.spinner.View())
 }
 
 func openUrl(url string) {
+	l(fmt.Sprintf("calling openUrl with url: %s", url))
 	var err error
 
 	switch runtime.GOOS {
@@ -171,16 +193,25 @@ func getSelectedUnit(selected string) string {
 func getEmptyApartmentUi() list.Model {
 	items := []list.Item{}
 
-	const defaultWidth = 20
-
 	l := list.New(items, itemDelegate{}, defaultWidth, listHeight)
-	l.Title = "Available Apartments"
+	l.Title = "Apartments"
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
+	l.SetShowTitle(false)
+	l.SetShowPagination(true)
+	l.SetShowHelp(false)
 	l.Styles.Title = titleStyle
 	l.Styles.PaginationStyle = paginationStyle
 	l.Styles.HelpStyle = helpStyle
 	return l
+}
+
+func getApartmentUiItems(aptmts []aptmtSrchr.Apartment) []list.Item {
+	items := []list.Item{}
+	for _, apt := range aptmts {
+		items = append(items, item(fmt.Sprintf("%s : %s : %d", apt.AvailDate, apt.UnitTitle, apt.Rent)))
+	}
+	return items
 }
 
 func getSpinner() spinner.Model {
@@ -192,13 +223,14 @@ func getSpinner() spinner.Model {
 
 func newModel() model {
 	m := model{apartmentList: getEmptyApartmentUi(), spinner: getSpinner()}
-	// m.apartmentList.SetSpinner(getSpinner().Spinner)
 	return m
 }
 
-func main() {
-	if err := tea.NewProgram(newModel()).Start(); err != nil {
-		fmt.Println("Error running program:", err)
-		os.Exit(1)
+func initLog() {
+	var file, err1 = os.OpenFile("./bubTea.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+
+	if err1 != nil {
+		panic(err1)
 	}
+	logg = log.New(file, "", log.LstdFlags|log.Lshortfile)
 }
