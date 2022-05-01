@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"regexp"
 	"runtime"
+	"sort"
 	"strings"
 
 	"github.com/andrewwillette/aptmtSrchr"
@@ -29,7 +30,7 @@ func init() {
 	initLog()
 }
 
-const listHeight = 9
+const listHeight = 15
 const defaultWidth = 20
 
 type item string
@@ -78,11 +79,15 @@ var (
 	loadedApartments  = []aptmtSrchr.Apartment{}
 )
 
-// loadApartments load apartments from internet and set local flags
+// loadApartments load apartments from http dependencies and set local flags
 // notifying runtime that apartments are loaded
 func loadApartments() {
 	defer func() { apartmentsLoaded = true }()
-	loadedApartments = aptmtSrchr.GetApartments()
+	apts := []string{"https://www.uli.com/residential/apartment-search?field_property_target_id%5B%5D=2&field_property_target_id%5B%5D=4&field_property_target_id%5B%5D=8&field_property_target_id%5B%5D=1883&field_property_target_id%5B%5D=1980&field_property_target_id%5B%5D=2133&field_bedrooms_value%5B%5D=studio&field_bedrooms_value%5B%5D=1_bed&field_bedrooms_value%5B%5D=1_bed_den&field_available_date_value_1%5Bvalue%5D%5Bdate%5D="}
+	loadedApartments = aptmtSrchr.GetUliMadisonAptmts(apts)
+	sort.SliceStable(loadedApartments, func(i, j int) bool {
+		return loadedApartments[i].Rent < loadedApartments[j].Rent
+	})
 }
 
 func (m model) Init() tea.Cmd {
@@ -102,11 +107,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case "enter":
-			l("pressed enter")
 			i, ok := m.apartmentList.SelectedItem().(item)
 			if ok {
 				m.choice = string(i)
-				selectedUnit := getSelectedUnit(m.choice)
+				selectedUnit := getSelectedUnitTitle(m.choice)
 				l(fmt.Sprintf("selected unit: %+v", selectedUnit))
 				for _, apt := range loadedApartments {
 					if apt.UnitTitle == selectedUnit {
@@ -115,16 +119,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			return m, nil
-		}
-	default:
-		if !apartmentsLoaded {
-			var cmd tea.Cmd
-			m.spinner, cmd = m.spinner.Update(msg)
-			return m, cmd
-		} else {
-			var cmd tea.Cmd
-			m.apartmentList, cmd = m.apartmentList.Update(msg)
-			return m, cmd
 		}
 	}
 	if !apartmentsLoaded {
@@ -146,10 +140,6 @@ func l(tolog string) {
 }
 
 func (m model) View() string {
-
-	// if m.choice != "" {
-	// 	return "\n" + m.apartmentList.View()
-	// }
 	if m.quitting {
 		return quitTextStyle.Render("Program Exited.")
 	}
@@ -182,11 +172,15 @@ func openUrl(url string) {
 		log.Fatal(err)
 	}
 }
-func getSelectedUnit(selected string) string {
-	r, _ := regexp.Compile(`\s[^:].*:`)
-	result := r.FindString(selected)
-	r, _ = regexp.Compile(`.*[^:]`)
+
+func getSelectedUnitTitle(unparsedAptmtString string) string {
+	l(fmt.Sprintf("result0: %s", unparsedAptmtString))
+	r, _ := regexp.Compile(`:.*:`)
+	result := r.FindString(unparsedAptmtString)
+	l(fmt.Sprintf("result: %s", result))
+	r, _ = regexp.Compile(`[^:][^:]*`)
 	result = r.FindString(result)
+	l(fmt.Sprintf("result2: %s", result))
 	return strings.TrimSpace(result)
 }
 
@@ -199,7 +193,7 @@ func getEmptyApartmentUi() list.Model {
 	l.SetFilteringEnabled(false)
 	l.SetShowTitle(false)
 	l.SetShowPagination(true)
-	l.SetShowHelp(false)
+	l.SetShowHelp(true)
 	l.Styles.Title = titleStyle
 	l.Styles.PaginationStyle = paginationStyle
 	l.Styles.HelpStyle = helpStyle
@@ -209,7 +203,7 @@ func getEmptyApartmentUi() list.Model {
 func getApartmentUiItems(aptmts []aptmtSrchr.Apartment) []list.Item {
 	items := []list.Item{}
 	for _, apt := range aptmts {
-		items = append(items, item(fmt.Sprintf("%s : %s : %d", apt.AvailDate, apt.UnitTitle, apt.Rent)))
+		items = append(items, item(fmt.Sprintf("%s : %s : : Rent - %d : SqFt - %d", apt.AvailDate, apt.UnitTitle, apt.Rent, apt.SqFootage)))
 	}
 	return items
 }

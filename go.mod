@@ -3,7 +3,7 @@ module github.com/andrewwillette/aptmtSrch
 go 1.18
 
 require (
-	github.com/andrewwillette/aptmtSrchr v0.0.0-20220422013324-2e811ae0ad35
+	github.com/andrewwillette/aptmtSrchr v0.0.0-20220430235251-b985e40fc828
 	github.com/charmbracelet/bubbles v0.10.3
 	github.com/charmbracelet/bubbletea v0.20.0
 	github.com/charmbracelet/lipgloss v0.5.0
@@ -35,7 +35,7 @@ require (
 	github.com/spf13/cobra v1.4.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/temoto/robotstxt v1.1.2 // indirect
-	golang.org/x/net v0.0.0-20220421235706-1d1ef9303861 // indirect
+	golang.org/x/net v0.0.0-20220425223048-2871e0cb64e4 // indirect
 	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad // indirect
 	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171 // indirect
 	golang.org/x/text v0.3.7 // indirect
